@@ -1,2 +1,6 @@
 !.gitignore
 node_modules
+dist
+*.js
+*.js.map
+!eslint.config.mjs
