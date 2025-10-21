@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import * as secp from 'ethereum-cryptography/secp256k1';
-import { toHex } from 'ethereum-cryptography/utils';
+import { secp256k1 } from 'ethereum-cryptography/secp256k1';
+import { toHex, hexToBytes } from 'ethereum-cryptography/utils';
 import { keccak256 } from 'ethereum-cryptography/keccak';
 import server from './server';
 
@@ -18,16 +18,23 @@ function Wallet({ address, setAddress, balance, setBalance }: WalletProps) {
     try {
       const cleanPrivKey = privateKey.startsWith('0x') ? privateKey.slice(2) : privateKey;
 
-      const privateKeyBytes = new Uint8Array(
-        cleanPrivKey.match(/.{1,2}/g)?.map((byte) => parseInt(byte, 16)) || []
-      );
+      // Validate hex string
+      if (!/^[0-9a-fA-F]{64}$/.test(cleanPrivKey)) {
+        return '';
+      }
 
-      const publicKey = secp.getPublicKey(privateKeyBytes, false);
+      const privateKeyBytes = hexToBytes(cleanPrivKey);
 
+      // Get uncompressed public key (65 bytes: 0x04 + 32 bytes X + 32 bytes Y)
+      const publicKey = secp256k1.getPublicKey(privateKeyBytes, false);
+
+      // Remove the 0x04 prefix (first byte)
       const publicKeyWithoutPrefix = publicKey.slice(1);
 
+      // Hash the public key using Keccak-256
       const hash = keccak256(publicKeyWithoutPrefix);
 
+      // Take the last 20 bytes as the address
       const addressBytes = hash.slice(-20);
 
       return `0x${toHex(addressBytes)}`;
