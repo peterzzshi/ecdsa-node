@@ -1,14 +1,8 @@
-import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
-import importPlugin from 'eslint-plugin-import';
 
-export default tseslint.config(
-  js.configs.recommended,
+export default [
   ...tseslint.configs.recommended,
   {
-    plugins: {
-      import: importPlugin,
-    },
     languageOptions: {
       parserOptions: {
         project: './tsconfig.json',
@@ -38,10 +32,8 @@ export default tseslint.config(
       }],
       'no-multiple-empty-lines': ['error', { max: 1, maxEOF: 0 }],
       'eol-last': ['error', 'always'],
-      'import/prefer-default-export': 'off',
       '@typescript-eslint/explicit-function-return-type': 'off',
       '@typescript-eslint/no-explicit-any': 'warn',
     },
   },
-);
-
+];
