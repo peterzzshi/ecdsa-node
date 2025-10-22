@@ -24,11 +24,12 @@ To generate private keys and their corresponding public keys (Ethereum addresses
 npm run generate
 ```
 
-This script uses the `ethereum-cryptography` library to:
-1. Generate random private keys using SECP256k1 elliptic curve cryptography
-2. Derive the public key from each private key
+This script uses the `@noble/secp256k1` and `ethereum-cryptography` libraries to:
+1. Generate random private keys using `@noble/secp256k1`'s `utils.randomSecretKey()`
+2. Derive the uncompressed public key from each private key using `getPublicKey(privateKey, false)`
 3. Create Ethereum-style addresses (0x + 20 bytes) by:
-   - Taking the Keccak-256 hash of the public key
+   - Removing the first byte (0x04 prefix) from the uncompressed public key
+   - Taking the Keccak-256 hash of the remaining public key bytes
    - Using the last 20 bytes of the hash as the address
 
 The script will output 3 sets of credentials that you can use for testing:
