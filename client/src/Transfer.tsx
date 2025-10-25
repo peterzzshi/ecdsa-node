@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import { AxiosError } from 'axios';
 import server from './server';
+import { signTransaction } from './crypto';
 
 interface TransferProps {
   address: string;
   setBalance: (balance: number) => void;
+  privateKey: string;
 }
 
-function Transfer({ address, setBalance }: TransferProps) {
+function Transfer({ address, setBalance, privateKey }: TransferProps) {
   const [sendAmount, setSendAmount] = useState<string>('');
   const [recipient, setRecipient] = useState<string>('');
 
@@ -18,18 +20,43 @@ function Transfer({ address, setBalance }: TransferProps) {
   async function transfer(evt: React.FormEvent) {
     evt.preventDefault();
 
+    if (!privateKey) {
+      alert('Please enter your private key in the wallet section first');
+      return;
+    }
+
     try {
-      const {
-        data: { balance },
-      } = await server.post<{ balance: number }>('send', {
+      // Create the transaction message
+      const message = {
         sender: address,
         amount: parseInt(sendAmount, 10),
         recipient,
+      };
+
+      console.log('Signing transaction:', message);
+
+      // Sign the transaction
+      const { signature, recovery, messageHash } = await signTransaction(privateKey, message);
+
+      console.log('Transaction signed:', { signature, recovery, messageHash });
+
+      // Send the signed transaction to the server
+      const {
+        data: { balance },
+      } = await server.post<{ balance: number }>('send', {
+        message,
+        signature,
+        recovery,
+        messageHash,
       });
       setBalance(balance);
+      alert('Transaction successful!');
     } catch (ex) {
       const error = ex as AxiosError<{ message: string }>;
-      alert(error.response?.data?.message || 'An error occurred');
+      console.error('Transaction error:', error);
+      console.error('Error response:', error.response?.data);
+      const errorMessage = error.response?.data?.message || error.message || 'An error occurred';
+      alert(`Transaction failed: ${errorMessage}`);
     }
   }
 

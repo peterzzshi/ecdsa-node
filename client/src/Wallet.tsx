@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { secp256k1 } from 'ethereum-cryptography/secp256k1';
 import { toHex, hexToBytes } from 'ethereum-cryptography/utils';
 import { keccak256 } from 'ethereum-cryptography/keccak';
@@ -9,10 +9,11 @@ interface WalletProps {
   setAddress: (address: string) => void;
   balance: number;
   setBalance: (balance: number) => void;
+  privateKey: string;
+  setPrivateKey: (privateKey: string) => void;
 }
 
-function Wallet({ address, setAddress, balance, setBalance }: WalletProps) {
-  const [privateKey, setPrivateKey] = useState<string>('');
+function Wallet({ address, setAddress, balance, setBalance, privateKey, setPrivateKey }: WalletProps) {
 
   function deriveAddress(privateKey: string): string {
     try {
