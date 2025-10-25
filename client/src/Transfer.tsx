@@ -2,16 +2,17 @@ import React, { useState } from 'react';
 import { AxiosError } from 'axios';
 import server from './server';
 import { signTransaction } from './crypto';
+import { deriveAddress } from './utils';
 
 interface TransferProps {
   address: string;
   setBalance: (balance: number) => void;
-  privateKey: string;
 }
 
-function Transfer({ address, setBalance, privateKey }: TransferProps) {
+function Transfer({ address, setBalance }: TransferProps) {
   const [sendAmount, setSendAmount] = useState<string>('');
   const [recipient, setRecipient] = useState<string>('');
+  const [privateKey, setPrivateKey] = useState<string>('');
 
   const setValue = (setter: (value: string) => void) => (
     evt: React.ChangeEvent<HTMLInputElement>,
@@ -21,7 +22,21 @@ function Transfer({ address, setBalance, privateKey }: TransferProps) {
     evt.preventDefault();
 
     if (!privateKey) {
-      alert('Please enter your private key in the wallet section first');
+      alert('Please enter your private key to sign the transaction');
+      return;
+    }
+
+    // Derive the address from the private key
+    const derivedAddress = deriveAddress(privateKey);
+    
+    if (!derivedAddress) {
+      alert('Invalid private key format');
+      return;
+    }
+
+    // Verify that the private key corresponds to the wallet address
+    if (derivedAddress.toLowerCase() !== address.toLowerCase()) {
+      alert('Private key does not match the wallet address');
       return;
     }
 
@@ -33,12 +48,8 @@ function Transfer({ address, setBalance, privateKey }: TransferProps) {
         recipient,
       };
 
-      console.log('Signing transaction:', message);
-
       // Sign the transaction
       const { signature, messageHash } = await signTransaction(privateKey, message);
-
-      console.log('Transaction signed:', { signature, messageHash });
 
       // Send the signed transaction to the server
       const {
@@ -52,8 +63,6 @@ function Transfer({ address, setBalance, privateKey }: TransferProps) {
       alert('Transaction successful!');
     } catch (ex) {
       const error = ex as AxiosError<{ message: string }>;
-      console.error('Transaction error:', error);
-      console.error('Error response:', error.response?.data);
       const errorMessage = error.response?.data?.message || error.message || 'An error occurred';
       alert(`Transaction failed: ${errorMessage}`);
     }
@@ -78,6 +87,16 @@ function Transfer({ address, setBalance, privateKey }: TransferProps) {
           placeholder="Type an address, for example: 0x2"
           value={recipient}
           onChange={setValue(setRecipient)}
+        />
+      </label>
+
+      <label>
+        Private Key (for signing)
+        <input
+          type="password"
+          placeholder="Enter your private key to sign this transaction"
+          value={privateKey}
+          onChange={setValue(setPrivateKey)}
         />
       </label>
 
