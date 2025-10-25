@@ -1,34 +1,30 @@
-import { utils, getPublicKey } from '@noble/secp256k1';
-import { keccak256 } from 'ethereum-cryptography/keccak';
+import * as secp from '@noble/secp256k1';
+import { keccak_256 } from '@noble/hashes/sha3.js';
 
 /**
  * Generate a random private key and derive its public key and Ethereum address
  */
 function generateKeyPair() {
-  // Generate a random private key
-  const privateKey = utils.randomSecretKey();
+  const privateKey = secp.utils.randomSecretKey();
 
-  // Get the public key from the private key (uncompressed format)
-  const publicKey = getPublicKey(privateKey, false);
+  const publicKey = secp.getPublicKey(privateKey, false);
 
   // Derive Ethereum address from public key
   // Remove the first byte (0x04 prefix for uncompressed public key)
   const publicKeyWithoutPrefix = publicKey.slice(1);
   
-  // Hash the public key using Keccak-256
-  const hash = keccak256(publicKeyWithoutPrefix);
-  
+  const hash = keccak_256(publicKeyWithoutPrefix);
+
   // Take the last 20 bytes of the hash
   const address = hash.slice(-20);
   
   return {
-    privateKey: Buffer.from(privateKey).toString('hex'),
-    publicKey: Buffer.from(publicKey).toString('hex'),
-    address: `0x${Buffer.from(address).toString('hex')}`,
+    privateKey: secp.etc.bytesToHex(privateKey),
+    publicKey: secp.etc.bytesToHex(publicKey),
+    address: `0x${secp.etc.bytesToHex(address)}`,
   };
 }
 
-// Generate 3 key pairs
 console.log('🔐 Generating key pairs...\n');
 
 for (let i = 1; i <= 3; i += 1) {

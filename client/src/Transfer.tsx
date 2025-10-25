@@ -36,9 +36,9 @@ function Transfer({ address, setBalance, privateKey }: TransferProps) {
       console.log('Signing transaction:', message);
 
       // Sign the transaction
-      const { signature, recovery, messageHash } = await signTransaction(privateKey, message);
+      const { signature, messageHash } = await signTransaction(privateKey, message);
 
-      console.log('Transaction signed:', { signature, recovery, messageHash });
+      console.log('Transaction signed:', { signature, messageHash });
 
       // Send the signed transaction to the server
       const {
@@ -46,7 +46,6 @@ function Transfer({ address, setBalance, privateKey }: TransferProps) {
       } = await server.post<{ balance: number }>('send', {
         message,
         signature,
-        recovery,
         messageHash,
       });
       setBalance(balance);

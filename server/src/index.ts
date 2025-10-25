@@ -1,7 +1,7 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
-import { keccak256 } from 'ethereum-cryptography/keccak';
-import { utf8ToBytes } from 'ethereum-cryptography/utils';
+import { keccak_256 } from '@noble/hashes/sha3.js';
+import * as secp from '@noble/secp256k1';
 import { verifySignatureAndGetAddress } from './crypto';
 
 const app = express();
@@ -29,7 +29,6 @@ interface TransactionMessage {
 interface SendRequestBody {
   message: TransactionMessage;
   signature: string;
-  recovery: number;
   messageHash: string;
 }
 
@@ -41,23 +40,19 @@ app.get('/balance/:address', (req: Request, res: Response) => {
 
 app.post('/send', (req: Request<object, object, SendRequestBody>, res: Response) => {
   try {
-    const { message, signature, recovery, messageHash } = req.body;
+    const { message, signature, messageHash } = req.body;
     const { sender, recipient, amount } = message;
 
-    // Verify the message hash matches the message
     const messageString = JSON.stringify(message);
-    const messageBytes = utf8ToBytes(messageString);
-    const computedHash = Buffer.from(keccak256(messageBytes)).toString('hex');
+    const messageBytes = new TextEncoder().encode(messageString);
+    const computedHash = secp.etc.bytesToHex(keccak_256(messageBytes));
 
     if (computedHash !== messageHash) {
       res.status(400).send({ message: 'Invalid message hash!' });
       return;
     }
 
-    // Recover the address from the signature
-    const recoveredAddress = verifySignatureAndGetAddress(messageHash, signature, recovery);
-
-    // Verify the recovered address matches the sender
+    const recoveredAddress = verifySignatureAndGetAddress(messageHash, signature);
     if (recoveredAddress.toLowerCase() !== sender.toLowerCase()) {
       res.status(401).send({ message: 'Invalid signature! Authentication failed.' });
       return;

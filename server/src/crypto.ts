@@ -1,5 +1,11 @@
-import { secp256k1 } from 'ethereum-cryptography/secp256k1';
-import { keccak256 } from 'ethereum-cryptography/keccak';
+import * as secp from '@noble/secp256k1';
+import { keccak_256 } from '@noble/hashes/sha3.js';
+import { hmac } from '@noble/hashes/hmac.js';
+import { sha256 } from '@noble/hashes/sha2.js';
+
+// Enable sync methods for @noble/secp256k1 v3.0.0
+secp.hashes.hmacSha256 = (key, msg) => hmac(sha256, key, msg);
+secp.hashes.sha256 = sha256;
 
 /**
  * Recover the public key from a signature
@@ -7,21 +13,35 @@ import { keccak256 } from 'ethereum-cryptography/keccak';
  */
 export function recoverPublicKeyFromSignature(
   messageHash: string,
-  signature: string,
-  recovery: number
+  signature: string
 ): Uint8Array {
-  const messageHashBytes = Buffer.from(messageHash, 'hex');
-  const signatureBytes = Buffer.from(signature, 'hex');
+  const messageHashBytes = secp.etc.hexToBytes(messageHash);
+  const signatureBytes = secp.etc.hexToBytes(signature);
 
-  // ethereum-cryptography's secp256k1.Signature.fromCompact can create a signature
-  // Then we use addRecoveryBit and recoverPublicKey
-  const sig = secp256k1.Signature.fromCompact(signatureBytes).addRecoveryBit(recovery);
+  console.log('Recovery input - signature hex:', signature);
+  console.log('Recovery input - signature length:', signatureBytes.length);
+  console.log('Recovery input - message hash length:', messageHashBytes.length);
+  console.log('Recovery input - first byte (recovery):', signatureBytes[0]);
 
-  // Recover the public key from the signature with recovery bit
-  const publicKey = sig.recoverPublicKey(messageHashBytes);
+  // The signature should be 65 bytes (64 bytes signature + 1 byte recovery)
+  if (signatureBytes.length !== 65) {
+    throw new Error(`Invalid signature length: expected 65 bytes, got ${signatureBytes.length}`);
+  }
 
-  // Return as raw bytes (uncompressed format)
-  return publicKey.toRawBytes(false);
+  // Recover the public key (returns compressed 33-byte key)
+  // Must use prehash: false since we're passing a hash, not the original message
+  const publicKeyCompressed = secp.recoverPublicKey(signatureBytes, messageHashBytes, { prehash: false });
+
+  console.log('Recovered public key (compressed):', secp.etc.bytesToHex(publicKeyCompressed));
+
+  // Convert to uncompressed format (65 bytes) for Ethereum address derivation
+  const publicKeyPoint = secp.Point.fromBytes(publicKeyCompressed);
+  const publicKey = publicKeyPoint.toBytes(false);
+
+  console.log('Recovered public key (uncompressed) length:', publicKey.length);
+
+  // Return as raw bytes (uncompressed format - 65 bytes)
+  return publicKey;
 }
 
 /**
@@ -32,12 +52,12 @@ export function publicKeyToAddress(publicKey: Uint8Array): string {
   const publicKeyWithoutPrefix = publicKey.slice(1);
 
   // Hash the public key using Keccak-256
-  const hash = keccak256(publicKeyWithoutPrefix);
+  const hash = keccak_256(publicKeyWithoutPrefix);
 
   // Take the last 20 bytes as the address
   const addressBytes = hash.slice(-20);
 
-  return `0x${Buffer.from(addressBytes).toString('hex')}`;
+  return `0x${secp.etc.bytesToHex(addressBytes)}`;
 }
 
 /**
@@ -45,10 +65,9 @@ export function publicKeyToAddress(publicKey: Uint8Array): string {
  */
 export function verifySignatureAndGetAddress(
   messageHash: string,
-  signature: string,
-  recovery: number
+  signature: string
 ): string {
-  const publicKey = recoverPublicKeyFromSignature(messageHash, signature, recovery);
+  const publicKey = recoverPublicKeyFromSignature(messageHash, signature);
   return publicKeyToAddress(publicKey);
 }
 
