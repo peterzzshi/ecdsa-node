@@ -12,7 +12,7 @@ secp.hashes.sha256 = sha256;
  */
 export async function signTransaction(
   privateKeyHex: string,
-  message: { sender: string; recipient: string; amount: number }
+  message: { sender: string; recipient: string; amount: number },
 ): Promise<{ signature: string; messageHash: string }> {
   // Remove 0x prefix if present
   const cleanPrivKey = privateKeyHex.startsWith('0x') ? privateKeyHex.slice(2) : privateKeyHex;
@@ -27,8 +27,6 @@ export async function signTransaction(
 
   return {
     signature: secp.etc.bytesToHex(sig),
-    messageHash: secp.etc.bytesToHex(messageHash)
+    messageHash: secp.etc.bytesToHex(messageHash),
   };
 }
-
-
