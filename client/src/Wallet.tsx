@@ -41,18 +41,19 @@ function Wallet({ address, setAddress, balance, setBalance, privateKey, setPriva
     }
   }
 
-  async function onChange(evt: React.ChangeEvent<HTMLInputElement>) {
-    const newPrivateKey = evt.target.value;
-    setPrivateKey(newPrivateKey);
+  async function onAddressChange(evt: React.ChangeEvent<HTMLInputElement>) {
+    const newAddress = evt.target.value;
+    setAddress(newAddress);
 
-    const derivedAddress = deriveAddress(newPrivateKey);
-    setAddress(derivedAddress);
+    // Validate address format (starts with 0x and has 40 hex characters)
+    const cleanAddress = newAddress.startsWith('0x') ? newAddress.slice(2) : newAddress;
+    const isValidAddress = /^[0-9a-fA-F]{40}$/.test(cleanAddress);
 
-    if (derivedAddress) {
+    if (isValidAddress) {
       try {
         const {
           data: { balance: newBalance },
-        } = await server.get<{ balance: number }>(`balance/${derivedAddress}`);
+        } = await server.get<{ balance: number }>(`balance/${newAddress}`);
         setBalance(newBalance);
       } catch (error) {
         setBalance(0);
@@ -62,29 +63,52 @@ function Wallet({ address, setAddress, balance, setBalance, privateKey, setPriva
     }
   }
 
+  async function onPrivateKeyChange(evt: React.ChangeEvent<HTMLInputElement>) {
+    const newPrivateKey = evt.target.value;
+    setPrivateKey(newPrivateKey);
+
+    const derivedAddress = deriveAddress(newPrivateKey);
+
+    if (derivedAddress) {
+      setAddress(derivedAddress);
+      try {
+        const {
+          data: { balance: newBalance },
+        } = await server.get<{ balance: number }>(`balance/${derivedAddress}`);
+        setBalance(newBalance);
+      } catch (error) {
+        setBalance(0);
+      }
+    }
+  }
+
   return (
     <div className="container wallet">
       <h1>Your Wallet</h1>
 
       <label>
-        Private Key
+        Address
         <input
-          placeholder="Type your private key, for example: 0xa1b2c3..."
-          value={privateKey}
-          onChange={onChange}
+          placeholder="Type an address to view balance, for example: 0x1a2b3c..."
+          value={address}
+          onChange={onAddressChange}
         />
       </label>
 
-      <div className="address">
-        Address:
-        {' '}
-        {address || 'Enter a valid private key'}
-      </div>
+      <label>
+        Private Key (optional, required for transactions)
+        <input
+          placeholder="Type your private key to sign transactions, for example: 0xa1b2c3..."
+          value={privateKey}
+          onChange={onPrivateKeyChange}
+          type="password"
+        />
+      </label>
 
       <div className="balance">
         Balance:
         {' '}
-        {balance}
+        {address ? balance : 'Enter an address to view balance'}
       </div>
     </div>
   );
