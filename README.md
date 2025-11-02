@@ -4,6 +4,24 @@ This project is an example of using a client and server to facilitate transfers 
 
 However, something that we would like to incorporate is Public Key Cryptography. By using Elliptic Curve Digital Signatures we can make it so the server only allows transfers that have been signed for by the person who owns the associated address.
 
+### 🚀 Modern TypeScript Implementation
+
+This implementation has been fully converted to **TypeScript** with modern tooling:
+
+**Tech Stack:**
+- **Client**: React 18 + TypeScript + Vite + SCSS
+- **Server**: Express + TypeScript + nodemon (hot reload)
+- **Cryptography**: @noble/secp256k1 v3.0.0 + ethereum-cryptography v3.2.0
+- **Code Quality**: ESLint 9 with Airbnb style guide
+
+**Key Features:**
+- ✅ Full TypeScript type safety across client and server
+- ✅ Modern cryptographic libraries (noble-curves ecosystem)
+- ✅ Ethereum-style addresses (0x + 20 hex characters)
+- ✅ ECDSA signature recovery for authentication
+- ✅ Hot reload development experience
+- ✅ Linting and code quality tools
+
 ## Video Instructions
 For an overview of this project as well as getting started instructions, check out the following video:
 
@@ -11,26 +29,64 @@ https://www.youtube.com/watch?v=GU5vlKaNvmI
 
 If you are interested in a text-based guide, please read on below. ⬇️
 
+## Project Structure
+
+```
+ecdsa-node/
+├── client/                    # React + TypeScript frontend
+│   ├── src/
+│   │   ├── App.tsx           # Main application component
+│   │   ├── Wallet.tsx        # Wallet component (private key → address)
+│   │   ├── Transfer.tsx      # Transfer component (sign & send)
+│   │   ├── crypto.ts         # Client-side signing functions
+│   │   └── server.ts         # Axios API client
+│   ├── package.json
+│   ├── tsconfig.json         # TypeScript configuration
+│   ├── vite.config.ts        # Vite configuration
+│   └── eslint.config.mjs     # ESLint 9 configuration
+│
+└── server/                    # Express + TypeScript backend
+    ├── src/
+    │   ├── index.ts          # Main server with balance management
+    │   └── crypto.ts         # Signature verification & recovery
+    ├── script/
+    │   └── generate.ts       # Key pair generation script
+    ├── package.json
+    ├── tsconfig.json         # TypeScript configuration
+    ├── nodemon.json          # Nodemon configuration
+    └── eslint.config.mjs     # ESLint 9 configuration
+```
+
 ## Setup Instructions
  
 ### Client
 
-The client folder contains a [react app](https://reactjs.org/) using [vite](https://vitejs.dev/). To get started, follow these steps:
+The client folder contains a [React app](https://reactjs.org/) using [Vite](https://vitejs.dev/) and **TypeScript**. To get started, follow these steps:
 
 1. Open up a terminal in the `/client` folder
 2. Run `npm install` to install all the dependencies
 3. Run `npm run dev` to start the application 
 4. Now you should be able to visit the app at http://localhost:5173/
 
+**Additional client scripts:**
+- `npm run build` - Build the TypeScript project for production
+- `npm run lint` - Check code for linting errors
+- `npm run lint:fix` - Auto-fix linting errors
+
 ### Server
 
-The server folder contains a Node.js server using [express](https://expressjs.com/). To run the server, follow these steps:
+The server folder contains a Node.js server using [Express](https://expressjs.com/) and **TypeScript**. To run the server, follow these steps:
 
 1. Open a terminal within the `/server` folder 
 2. Run `npm install` to install all the dependencies 
-3. Run `node index` to start the server
+3. Run `npm run dev` to start the development server with hot reload
 
-_Hint_ - > Run `npm i -g nodemon` and then run `nodemon index` instead of `node index` to automatically restart the server on any changes!
+**Additional server scripts:**
+- `npm run build` - Compile TypeScript to JavaScript
+- `npm start` - Run the compiled JavaScript (production)
+- `npm run generate` - Generate private keys and Ethereum addresses
+- `npm run lint` - Check code for linting errors
+- `npm run lint:fix` - Auto-fix linting errors
 
 The application should connect to the default server port (3042) automatically!
 
@@ -52,74 +108,113 @@ There are many ways to approach this project. The goal is to create a client-ser
 
 ### **Phase 1**
 - You have successfully git cloned this project onto your local machine
-- You installed all dependencies by running `npm i` both in the `/client` and in the `/server` folders
+- You installed all dependencies by running `npm install` both in the `/client` and in the `/server` folders
 - You have a website running on http://localhost:5173/ by running `npm run dev` in the `/client` folder
-- You have a server process running by running `nodemon index` in the `/server` folder (remember to run `npm i -g nodemon` prior to this)
-- A balance displays on the `Wallet Address` input box when you type in "0x1", "0x2" and "0x3"
-- When you type in "0x1" (or any of the other accounts listed in the `server/index.js` file, you can also send an amount to any other account (using the right-hand column); this action withdraws whatever amount you send from the first account too. You should see these changes in real time, especially if you are using `nodemon` to run your server process
-- Even if you reload the page on http://localhost:5173/, the balance changes you've previously made still remain - this is because it is your server actually keeping track of balances, not your client (ie. your front-end)
+- You have a server process running by running `npm run dev` in the `/server` folder (TypeScript development mode with hot reload via nodemon + ts-node)
+- A balance displays on the `Wallet Address` input box when you type in valid Ethereum addresses (0x + 40 hex characters)
+- The server uses **TypeScript** (`src/index.ts`) and maintains balances for Ethereum-style addresses
+- When you enter an address that has funds, you can send an amount to any other address (using the right-hand column); this action withdraws the specified amount from the sender account. You should see these changes in real time
+- Even if you reload the page on http://localhost:5173/, the balance changes you've previously made still remain - this is because your **server** is keeping track of balances, not your client (i.e., your front-end)
 
 If all of these are complete, move on to **Phase 2**! ⬇️
 
 ### **Phase 2**
 
-At this point, our app security is not very good. If we deploy this app now, anyone can access any balance and make changes. This means that Alice (or really.. anyone!) can type in "0x2" and transfer an amount, even if that account is not actually her account! We need to find a way to assign ownership of accounts. 
+At this point, our app security is not very good. If we deploy this app now, anyone can access any balance and make changes. This means that Alice (or really.. anyone!) can type in any address and transfer an amount, even if that account is not actually her account! We need to find a way to assign ownership of accounts. 
 
-Let's incorporate some of the cryptography we've learned in the previous lessons to build a half-baked solution; we will use [Ethereum Cryptography library](https://www.npmjs.com/package/ethereum-cryptography/v/1.2.0).
+Let's incorporate some of the cryptography we've learned in the previous lessons to build a half-baked solution. This project uses modern cryptography libraries:
+- **[@noble/secp256k1](https://github.com/paulmillr/noble-secp256k1)** v3.0.0 - For ECDSA operations
+- **[ethereum-cryptography](https://www.npmjs.com/package/ethereum-cryptography)** v3.2.0 - For Keccak-256 hashing
 
-> Please use v1.2.0 of the Ethereum Cryptography library!
-
-Start a new terminal tab and run `npm i ethereum-cryptography@1.2.0` - this will pull down functions to cryptographically sign and verify data.
-
-> Remember, you must run `npm i ethereum-cryptography@1.2.0` in BOTH the `/client` and the `/server` folder!
+> ✅ **Already Installed!** Both libraries are already included in this TypeScript project's dependencies.
 
 In **Phase 2**, your job is to implement private keys so that when a user interacts with your application, the ONLY way they are allowed to move funds is if they provide the **private key** of the account they want to move funds from.
 
-The key change is to change the `balances` object in the `/server/index.js` file to use **real public keys**.
+The key change is to use **real Ethereum addresses** derived from private keys in the server's `balances` object (`server/src/index.ts`).
 
-You can do this programmatically (by editting the `/server/index.js` file) or using a script with the following functions:
+#### Generating Key Pairs
 
-```js
-const secp = require("ethereum-cryptography/secp256k1");
-const { toHex } = require("ethereum-cryptography/utils");
+You can generate private keys and their corresponding Ethereum addresses using the included script:
 
-const privateKey = secp.utils.randomPrivateKey();
-
-console.log('private key: ', toHex(privateKey));
-
-const publicKey = secp.getPublicKey(privateKey);
-
-console.log('public key', toHex(publicKey));
+```bash
+cd server
+npm run generate
 ```
 
-The script above will create a brand new random private key, and then get its equivalent public key, each time you run it.
+This script (`server/script/generate.ts`) will:
+1. Generate random private keys using `@noble/secp256k1`
+2. Derive the uncompressed public key from each private key
+3. Create Ethereum-style addresses (0x + 20 hex bytes) by:
+   - Removing the first byte (0x04 prefix) from the uncompressed public key
+   - Taking the Keccak-256 hash of the remaining public key bytes
+   - Using the last 20 bytes of the hash as the address
 
-Now you have the foundation to implement public key cryptography into your project!
+**Example output:**
+```
+🔐 Generating key pairs...
+
+Account 1:
+Private Key: a1b2c3d4e5f6...
+Public Key:  04e5f6g7h8i9...
+Address:     0x5c134bd1119da76fdd9e9c53516d7010b99b88dd
+
+Account 2:
+...
+```
 
 To pass **Phase 2**:
 
-- You have replaced "0x1", "0x2" and "0x3" in the `server/index.js` file with actual public keys generated by using the [Ethereum Cryptography library](https://www.npmjs.com/package/ethereum-cryptography/v/1.2.0). These public keys, in this suggested flow, were generated from a randomly generated private key assigned to the user. The method used to generate the public key was: `secp.getPublicKey(privateKey)`.
+- You have replaced the placeholder addresses in `server/src/index.ts` with actual Ethereum addresses generated using the script above or by implementing your own key generation
+- These addresses are derived from randomly generated private keys using the secp256k1 elliptic curve
+- You are able to transfer funds between addresses by entering a **private key** in the webapp, which automatically derives the corresponding Ethereum address
+- The client (`client/src/Wallet.tsx`) derives the Ethereum address from the private key using the same algorithm (uncompressed public key → Keccak-256 → last 20 bytes)
 
-> Extra credit: Make your accounts look like Ethereum addresses! (ie. instead of the long public key hexadecimal format, use the "0x" + 20 hex characters format of Ethereum - this is a fun challenge to get right!)
-
-- You are able to transfer funds between the addresses, via public keys/addresses of your server's users, that have been generated by inputting a private key into the webapp.
+> 🎉 **Extra credit completed!** This implementation already uses Ethereum-style addresses (0x + 20 hex characters) instead of full public keys!
  
 ### **Phase 3**
 
 Asking users to input a private key directly into your webapp is a big no-no! 🚫
 
-The next step for YOU to accomplish is to make it so that you can send a signed transaction to the server, via your webapp; the server should the authenticate that transaction by deriving the public key associated with it. If that public key has funds, move the funds to the intended recipient. All of this should be accomplished via digital signatures alone.
+The next step for YOU to accomplish is to make it so that you can send a **signed transaction** to the server, via your webapp; the server should then authenticate that transaction by **recovering the public address from the signature itself**. If that address has funds, move the funds to the intended recipient. All of this should be accomplished via digital signatures alone.
 
-Hint: In `index.js`, you will want to:
-- get a signature from the client-side application
-- recover the public address from the signature itself
-- validate the recovered address against your server's `balances` object
+#### Implementation Overview
+
+This project implements **ECDSA signature recovery** using the secp256k1 elliptic curve:
+
+**Client-side** (`client/src/crypto.ts`):
+1. Creates a transaction message: `{ sender, recipient, amount }`
+2. Serializes the message to JSON and hashes it using Keccak-256
+3. Signs the hash with the user's private key using `@noble/secp256k1`
+4. Sends the signature, message hash, and original message to the server
+
+**Server-side** (`server/src/crypto.ts`):
+1. Receives the signature, message hash, and transaction message
+2. Verifies the message hash matches the received message (prevents tampering)
+3. **Recovers the public key** from the signature using `secp.recoverPublicKey()`
+4. Derives the Ethereum address from the recovered public key
+5. Validates that the recovered address matches the claimed sender address
+6. If valid, processes the transaction and moves funds
+
+**Key files:**
+- `server/src/index.ts` - Main server logic with balance management and signature verification
+- `server/src/crypto.ts` - Signature recovery and address derivation functions
+- `client/src/crypto.ts` - Transaction signing function
+- `client/src/Transfer.tsx` - UI component that signs and sends transactions
+- `client/src/Wallet.tsx` - Derives address from private key for user convenience
 
 To pass **Phase 3**:
 
-- Your app is able to validate and move funds using digital signatures.
+- ✅ Your app validates and moves funds using digital signatures
+- ✅ The server recovers the public address from the signature itself (not from client claims)
+- ✅ Private keys are only used client-side for signing - never sent to the server
+- ✅ The signature includes a recovery byte, allowing public key recovery without knowing it in advance
+- ✅ Message tampering is prevented by verifying the hash on the server
 
-> Hint: https://github.com/paulmillr/noble-secp256k1 is a great library to leverage for this final phase!
+> 🔒 **Security Note**: While this implementation is more secure, consider these improvements for production:
+> - Add nonces or timestamps to prevent replay attacks
+> - Implement proper key management (hardware wallets, MetaMask integration)
+> - Add rate limiting and other anti-abuse measures
+> - Use HTTPS in production to prevent man-in-the-middle attacks
 
 ## Sample Solution
 
