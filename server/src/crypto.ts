@@ -13,7 +13,7 @@ secp.hashes.sha256 = sha256;
  */
 export function recoverPublicKeyFromSignature(
   messageHash: string,
-  signature: string
+  signature: string,
 ): Uint8Array {
   const messageHashBytes = secp.etc.hexToBytes(messageHash);
   const signatureBytes = secp.etc.hexToBytes(signature);
@@ -65,9 +65,8 @@ export function publicKeyToAddress(publicKey: Uint8Array): string {
  */
 export function verifySignatureAndGetAddress(
   messageHash: string,
-  signature: string
+  signature: string,
 ): string {
   const publicKey = recoverPublicKeyFromSignature(messageHash, signature);
   return publicKeyToAddress(publicKey);
 }
-
