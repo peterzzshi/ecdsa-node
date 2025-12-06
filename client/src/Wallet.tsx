@@ -12,7 +12,14 @@ interface WalletProps {
   setPrivateKey: (privateKey: string) => void;
 }
 
-function Wallet({ address, setAddress, balance, setBalance, privateKey, setPrivateKey }: WalletProps) {
+function Wallet({
+  address,
+  setAddress,
+  balance,
+  setBalance,
+  privateKey,
+  setPrivateKey,
+}: WalletProps) {
 
   function deriveAddress(privateKey: string): string {
     try {
@@ -36,7 +43,7 @@ function Wallet({ address, setAddress, balance, setBalance, privateKey, setPriva
       const addressBytes = hash.slice(-20);
 
       return `0x${secp.etc.bytesToHex(addressBytes)}`;
-    } catch (error) {
+    } catch {
       return '';
     }
   }
@@ -55,7 +62,7 @@ function Wallet({ address, setAddress, balance, setBalance, privateKey, setPriva
           data: { balance: newBalance },
         } = await server.get<{ balance: number }>(`balance/${newAddress}`);
         setBalance(newBalance);
-      } catch (error) {
+      } catch {
         setBalance(0);
       }
     } else {
@@ -76,7 +83,7 @@ function Wallet({ address, setAddress, balance, setBalance, privateKey, setPriva
           data: { balance: newBalance },
         } = await server.get<{ balance: number }>(`balance/${derivedAddress}`);
         setBalance(newBalance);
-      } catch (error) {
+      } catch {
         setBalance(0);
       }
     }
