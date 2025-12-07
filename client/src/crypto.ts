@@ -9,10 +9,13 @@ secp.hashes.sha256 = sha256;
 
 /**
  * Sign a transaction message with a private key
+ * @param privateKeyHex - Private key as hex string (with or without 0x prefix)
+ * @param message - Transaction message containing sender, recipient, amount, and optional nonce
+ * @returns Object containing signature (65 bytes as hex) and messageHash (32 bytes as hex)
  */
 export async function signTransaction(
   privateKeyHex: string,
-  message: { sender: string; recipient: string; amount: number }
+  message: { sender: string; recipient: string; amount: number; nonce?: number },
 ): Promise<{ signature: string; messageHash: string }> {
   // Remove 0x prefix if present
   const cleanPrivKey = privateKeyHex.startsWith('0x') ? privateKeyHex.slice(2) : privateKeyHex;
@@ -27,8 +30,6 @@ export async function signTransaction(
 
   return {
     signature: secp.etc.bytesToHex(sig),
-    messageHash: secp.etc.bytesToHex(messageHash)
+    messageHash: secp.etc.bytesToHex(messageHash),
   };
 }
-
-

@@ -12,7 +12,14 @@ interface WalletProps {
   setPrivateKey: (privateKey: string) => void;
 }
 
-function Wallet({ address, setAddress, balance, setBalance, privateKey, setPrivateKey }: WalletProps) {
+function Wallet({
+  address,
+  setAddress,
+  balance,
+  setBalance,
+  privateKey,
+  setPrivateKey,
+}: WalletProps) {
 
   function deriveAddress(privateKey: string): string {
     try {
@@ -36,7 +43,7 @@ function Wallet({ address, setAddress, balance, setBalance, privateKey, setPriva
       const addressBytes = hash.slice(-20);
 
       return `0x${secp.etc.bytesToHex(addressBytes)}`;
-    } catch (error) {
+    } catch {
       return '';
     }
   }
@@ -55,7 +62,7 @@ function Wallet({ address, setAddress, balance, setBalance, privateKey, setPriva
           data: { balance: newBalance },
         } = await server.get<{ balance: number }>(`balance/${newAddress}`);
         setBalance(newBalance);
-      } catch (error) {
+      } catch {
         setBalance(0);
       }
     } else {
@@ -76,7 +83,7 @@ function Wallet({ address, setAddress, balance, setBalance, privateKey, setPriva
           data: { balance: newBalance },
         } = await server.get<{ balance: number }>(`balance/${derivedAddress}`);
         setBalance(newBalance);
-      } catch (error) {
+      } catch {
         setBalance(0);
       }
     }
@@ -87,7 +94,7 @@ function Wallet({ address, setAddress, balance, setBalance, privateKey, setPriva
       <h1>Your Wallet</h1>
 
       <label>
-        Address
+          Address
         <input
           placeholder="Type an address to view balance, for example: 0x1a2b3c..."
           value={address}
@@ -96,7 +103,7 @@ function Wallet({ address, setAddress, balance, setBalance, privateKey, setPriva
       </label>
 
       <label>
-        Private Key (optional, required for transactions)
+            Private Key (optional, required for transactions)
         <input
           placeholder="Type your private key to sign transactions, for example: 0xa1b2c3..."
           value={privateKey}
