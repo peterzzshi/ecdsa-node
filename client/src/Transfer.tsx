@@ -57,12 +57,8 @@ function Transfer({ address, setBalance, privateKey }: TransferProps) {
         nonce: currentNonce + 1,
       };
 
-      console.log('📝 Signing transaction:', message);
-
       // Sign the transaction
       const { signature, messageHash } = await signTransaction(privateKey, message);
-
-      console.log('✍️  Transaction signed:', { signature: signature.slice(0, 20) + '...', messageHash: messageHash.slice(0, 20) + '...' });
 
       // Send the signed transaction to the server
       const {
@@ -74,9 +70,6 @@ function Transfer({ address, setBalance, privateKey }: TransferProps) {
       });
 
       setBalance(data.balance);
-      console.log('✅ Transaction successful!');
-      console.log(`   Your new balance: ${data.balance}`);
-      console.log(`   Recipient balance: ${data.recipient.newBalance}`);
 
       alert(`✅ Transaction successful!\n\nYour new balance: ${data.balance}\nRecipient's new balance: ${data.recipient.newBalance}`);
 
@@ -85,20 +78,10 @@ function Transfer({ address, setBalance, privateKey }: TransferProps) {
       setRecipient('');
     } catch (ex) {
       const error = ex as AxiosError<ErrorResponse>;
-      console.error('❌ Transaction error:', error);
 
-      let errorMessage = 'An error occurred';
-
-      if (error.response?.data) {
-        const errorData = error.response.data;
-        errorMessage = errorData.message;
-
-        if (errorData.details) {
-          console.error('Error details:', errorData.details);
-        }
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
+      const errorMessage = error.response?.data?.message
+        || error.message
+        || 'An error occurred';
 
       alert(`❌ Transaction failed: ${errorMessage}`);
     } finally {

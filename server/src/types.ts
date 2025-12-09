@@ -1,5 +1,3 @@
-// Type definitions for the server
-
 export interface TransactionMessage {
   sender: string;
   recipient: string;
@@ -14,13 +12,13 @@ export interface SendRequestBody {
   messageHash: string;
 }
 
-export interface Balances {
+export type Balances = {
   [address: string]: number;
-}
+};
 
-export interface Nonces {
+export type Nonces = {
   [address: string]: number;
-}
+};
 
 export enum ErrorCode {
   INVALID_SIGNATURE = 'INVALID_SIGNATURE',

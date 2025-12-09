@@ -4,6 +4,7 @@ import { keccak_256 } from '@noble/hashes/sha3.js';
 import * as secp from '@noble/secp256k1';
 import { verifySignatureAndGetAddress } from './crypto';
 import { SendRequestBody, ErrorCode, ErrorResponse } from './types';
+import { loadStorage, scheduleSave } from './storage';
 
 const app = express();
 const port = process.env.PORT || 3042;
@@ -11,22 +12,22 @@ const port = process.env.PORT || 3042;
 app.use(cors());
 app.use(express.json());
 
-interface Balances {
-  [address: string]: number;
-}
+// Load balances and nonces from storage file
+const initialStorage = (() => {
+  try {
+    const storage = loadStorage();
+    console.log(`Loaded ${Object.keys(storage.balances).length} accounts from storage`);
+    return storage;
+  } catch (error) {
+    console.error('Failed to load storage, starting with empty state:', error);
+    return { balances: {}, nonces: {} };
+  }
+})();
 
-interface Nonces {
-  [address: string]: number;
-}
-
-const balances: Balances = {
-  '0x5c134bd1119da76fdd9e9c53516d7010b99b88dd': 100,
-  '0xbdec47d97e106e32c7c92824735c96b57b248c2b': 50,
-  '0x58996da52a56c3c0e54bd84a6ef52c478079152a': 75,
+const state = {
+  balances: { ...initialStorage.balances },
+  nonces: { ...initialStorage.nonces },
 };
-
-// Track nonces for replay attack prevention
-const nonces: Nonces = {};
 
 /**
  * Validate Ethereum address format
@@ -48,8 +49,8 @@ function isValidAmount(amount: number): boolean {
  * Initialize balance if address doesn't exist
  */
 function setInitialBalance(address: string): void {
-  if (!balances[address]) {
-    balances[address] = 0;
+  if (!state.balances[address]) {
+    state.balances[address] = 0;
   }
 }
 
@@ -67,7 +68,7 @@ app.get('/nonce/:address', (req: Request, res: Response) => {
     return;
   }
 
-  const nonce = nonces[address] || 0;
+  const nonce = state.nonces[address] || 0;
   res.send({ nonce });
 });
 
@@ -85,7 +86,7 @@ app.get('/balance/:address', (req: Request, res: Response) => {
     return;
   }
 
-  const balance = balances[address] || 0;
+  const balance = state.balances[address] || 0;
   res.send({ balance });
 });
 
@@ -143,7 +144,7 @@ app.post('/send', (req: Request<object, object, SendRequestBody>, res: Response)
     }
 
     // Verify nonce to prevent replay attacks
-    const currentNonce = nonces[sender] || 0;
+    const currentNonce = state.nonces[sender] || 0;
     if (nonce !== currentNonce + 1) {
       res.status(400).send({
         code: ErrorCode.INVALID_NONCE,
@@ -182,32 +183,35 @@ app.post('/send', (req: Request<object, object, SendRequestBody>, res: Response)
     setInitialBalance(recipient);
 
     // Check sufficient funds
-    if (balances[sender] < amount) {
+    if (state.balances[sender] < amount) {
       res.status(400).send({
         code: ErrorCode.INSUFFICIENT_FUNDS,
         message: 'Not enough funds',
-        details: { required: amount, available: balances[sender] },
+        details: { required: amount, available: state.balances[sender] },
       } as ErrorResponse);
       return;
     }
 
     // Process transaction
-    balances[sender] -= amount;
-    balances[recipient] += amount;
-    nonces[sender] = nonce;
+    state.balances[sender] -= amount;
+    state.balances[recipient] += amount;
+    state.nonces[sender] = nonce;
 
-    console.log(`✅ Transaction successful: ${sender} → ${recipient} (${amount})`);
+    // Save changes to storage (debounced)
+    scheduleSave(state.balances, state.nonces);
+
+    console.log(`Transaction successful: ${sender} → ${recipient} (${amount})`);
 
     res.send({
-      balance: balances[sender],
+      balance: state.balances[sender],
       newNonce: nonce,
       recipient: {
         address: recipient,
-        newBalance: balances[recipient],
+        newBalance: state.balances[recipient],
       },
     });
   } catch (error) {
-    console.error('❌ Error processing transaction:', error);
+    console.error('Error processing transaction:', error);
     res.status(500).send({
       code: ErrorCode.INTERNAL_ERROR,
       message: 'Error processing transaction',
@@ -217,6 +221,6 @@ app.post('/send', (req: Request<object, object, SendRequestBody>, res: Response)
 });
 
 app.listen(port, () => {
-  console.log(`🚀 Server listening on port ${port}`);
-  console.log(`📊 Initial balances loaded: ${Object.keys(balances).length} accounts`);
+  console.log(`Server listening on port ${port}`);
+  console.log(`Initial balances loaded: ${Object.keys(state.balances).length} accounts`);
 });
