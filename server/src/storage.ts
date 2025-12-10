@@ -7,7 +7,7 @@ interface StorageData {
   nonces: Nonces;
 }
 
-const STORAGE_FILE = path.join(__dirname, 'storage.json');
+const STORAGE_FILE = path.join(__dirname, 'data.json');
 
 /**
  * Load data from storage file

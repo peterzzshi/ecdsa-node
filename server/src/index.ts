@@ -1,10 +1,13 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
+import crypto from 'crypto';
 import { keccak_256 } from '@noble/hashes/sha3.js';
 import * as secp from '@noble/secp256k1';
 import { verifySignatureAndGetAddress } from './crypto';
-import { SendRequestBody, ErrorCode, ErrorResponse } from './types';
+import { SendRequestBody, ErrorCode, ErrorResponse, Balances, Nonces } from './types';
 import { loadStorage, scheduleSave } from './storage';
+import { logger } from './logger/logger';
+import { LogContext, withLogContext } from './logger/context';
 
 const app = express();
 const port = process.env.PORT || 3042;
@@ -12,16 +15,43 @@ const port = process.env.PORT || 3042;
 app.use(cors());
 app.use(express.json());
 
+// Logging middleware - adds context to all requests
+app.use((req, res, next) => {
+  const requestId = crypto.randomUUID();
+  const context = LogContext.create({
+    requestId,
+    operation: 'http-request',
+    transactionData: new Map([
+      ['method', req.method],
+      ['path', req.path],
+      ['userAgent', req.get('User-Agent') || 'unknown'],
+    ]),
+  });
+
+  // Keep next() inside withLogContext to ensure async context propagates
+  withLogContext(context, () => {
+    logger.info(`${req.method} ${req.path}`);
+    // Call next() within the context so all subsequent handlers have access to it
+    next();
+  });
+});
+
 // Load balances and nonces from storage file
 const initialStorage = (() => {
-  try {
-    const storage = loadStorage();
-    console.log(`Loaded ${Object.keys(storage.balances).length} accounts from storage`);
-    return storage;
-  } catch (error) {
-    console.error('Failed to load storage, starting with empty state:', error);
-    return { balances: {}, nonces: {} };
-  }
+  const context = LogContext.create({
+    operation: 'storage-initialization',
+  });
+
+  return withLogContext(context, () => {
+    try {
+      const storage = loadStorage();
+      logger.info(`Loaded ${Object.keys(storage.balances).length} accounts from storage`);
+      return storage;
+    } catch (error) {
+      logger.error('Failed to load storage, starting with empty state', error as Error);
+      return { balances: {} as Balances, nonces: {} as Nonces };
+    }
+  });
 })();
 
 const state = {
@@ -59,17 +89,25 @@ function setInitialBalance(address: string): void {
  */
 app.get('/nonce/:address', (req: Request, res: Response) => {
   const { address } = req.params;
+  const context = LogContext.create({
+    operation: 'nonce-query',
+    address,
+  });
 
-  if (!isValidAddress(address)) {
-    res.status(400).send({
-      code: ErrorCode.INVALID_ADDRESS,
-      message: 'Invalid address format',
-    } as ErrorResponse);
-    return;
-  }
+  withLogContext(context, () => {
+    if (!isValidAddress(address)) {
+      logger.warn('Invalid address format');
+      res.status(400).send({
+        code: ErrorCode.INVALID_ADDRESS,
+        message: 'Invalid address format',
+      } as ErrorResponse);
+      return;
+    }
 
-  const nonce = state.nonces[address] || 0;
-  res.send({ nonce });
+    const nonce = state.nonces[address] || 0;
+    logger.debug(`Nonce retrieved: ${nonce}`);
+    res.send({ nonce });
+  });
 });
 
 /**
@@ -77,17 +115,25 @@ app.get('/nonce/:address', (req: Request, res: Response) => {
  */
 app.get('/balance/:address', (req: Request, res: Response) => {
   const { address } = req.params;
+  const context = LogContext.create({
+    operation: 'balance-query',
+    address,
+  });
 
-  if (!isValidAddress(address)) {
-    res.status(400).send({
-      code: ErrorCode.INVALID_ADDRESS,
-      message: 'Invalid address format',
-    } as ErrorResponse);
-    return;
-  }
+  withLogContext(context, () => {
+    if (!isValidAddress(address)) {
+      logger.warn('Invalid address format');
+      res.status(400).send({
+        code: ErrorCode.INVALID_ADDRESS,
+        message: 'Invalid address format',
+      } as ErrorResponse);
+      return;
+    }
 
-  const balance = state.balances[address] || 0;
-  res.send({ balance });
+    const balance = state.balances[address] || 0;
+    logger.debug(`Balance retrieved: ${balance}`);
+    res.send({ balance });
+  });
 });
 
 /**
@@ -99,6 +145,7 @@ app.post('/send', (req: Request<object, object, SendRequestBody>, res: Response)
 
     // Validate request body
     if (!message || !signature || !messageHash) {
+      logger.warn('Missing required fields in transaction request');
       res.status(400).send({
         code: ErrorCode.INVALID_SIGNATURE,
         message: 'Missing required fields: message, signature, or messageHash',
@@ -108,110 +155,139 @@ app.post('/send', (req: Request<object, object, SendRequestBody>, res: Response)
 
     const { sender, recipient, amount, nonce } = message;
 
-    // Validate addresses
-    if (!isValidAddress(sender)) {
-      res.status(400).send({
-        code: ErrorCode.INVALID_ADDRESS,
-        message: 'Invalid sender address format',
-      } as ErrorResponse);
-      return;
-    }
+    // Update context with transaction details
+    const context = LogContext.create({
+      operation: 'transaction',
+      address: sender,
+      transactionData: new Map([
+        ['sender', sender],
+        ['recipient', recipient],
+        ['amount', amount.toString()],
+        ['nonce', nonce.toString()],
+      ]),
+    });
 
-    if (!isValidAddress(recipient)) {
-      res.status(400).send({
-        code: ErrorCode.INVALID_ADDRESS,
-        message: 'Invalid recipient address format',
-      } as ErrorResponse);
-      return;
-    }
+    withLogContext(context, () => {
+      logger.debug('Validating transaction');
 
-    // Prevent self-transfers
-    if (sender.toLowerCase() === recipient.toLowerCase()) {
-      res.status(400).send({
-        code: ErrorCode.SELF_TRANSFER,
-        message: 'Cannot transfer to yourself',
-      } as ErrorResponse);
-      return;
-    }
+      // Validate addresses
+      if (!isValidAddress(sender)) {
+        logger.warn('Invalid sender address format');
+        res.status(400).send({
+          code: ErrorCode.INVALID_ADDRESS,
+          message: 'Invalid sender address format',
+        } as ErrorResponse);
+        return;
+      }
 
-    // Validate amount
-    if (!isValidAmount(amount)) {
-      res.status(400).send({
-        code: ErrorCode.INVALID_AMOUNT,
-        message: 'Invalid amount: must be a positive integer less than 1,000,000',
-      } as ErrorResponse);
-      return;
-    }
+      if (!isValidAddress(recipient)) {
+        logger.warn('Invalid recipient address format');
+        res.status(400).send({
+          code: ErrorCode.INVALID_ADDRESS,
+          message: 'Invalid recipient address format',
+        } as ErrorResponse);
+        return;
+      }
 
-    // Verify nonce to prevent replay attacks
-    const currentNonce = state.nonces[sender] || 0;
-    if (nonce !== currentNonce + 1) {
-      res.status(400).send({
-        code: ErrorCode.INVALID_NONCE,
-        message: `Invalid nonce: expected ${currentNonce + 1}, got ${nonce}`,
-        details: { expected: currentNonce + 1, received: nonce },
-      } as ErrorResponse);
-      return;
-    }
+      // Prevent self-transfers
+      if (sender.toLowerCase() === recipient.toLowerCase()) {
+        logger.warn('Attempted self-transfer');
+        res.status(400).send({
+          code: ErrorCode.SELF_TRANSFER,
+          message: 'Cannot transfer to yourself',
+        } as ErrorResponse);
+        return;
+      }
 
-    // Verify message hash
-    const messageString = JSON.stringify(message);
-    const messageBytes = new TextEncoder().encode(messageString);
-    const computedHash = secp.etc.bytesToHex(keccak_256(messageBytes));
+      // Validate amount
+      if (!isValidAmount(amount)) {
+        logger.warn(`Invalid amount: ${amount}`);
+        res.status(400).send({
+          code: ErrorCode.INVALID_AMOUNT,
+          message: 'Invalid amount: must be a positive integer less than 1,000,000',
+        } as ErrorResponse);
+        return;
+      }
 
-    if (computedHash !== messageHash) {
-      res.status(400).send({
-        code: ErrorCode.INVALID_HASH,
-        message: 'Invalid message hash - message may have been tampered with',
-      } as ErrorResponse);
-      return;
-    }
+      // Verify nonce to prevent replay attacks
+      logger.debug('Verifying nonce');
+      const currentNonce = state.nonces[sender] || 0;
+      if (nonce !== currentNonce + 1) {
+        logger.warn(`Invalid nonce: expected ${currentNonce + 1}, got ${nonce}`);
+        res.status(400).send({
+          code: ErrorCode.INVALID_NONCE,
+          message: `Invalid nonce: expected ${currentNonce + 1}, got ${nonce}`,
+          details: { expected: currentNonce + 1, received: nonce },
+        } as ErrorResponse);
+        return;
+      }
 
-    // Recover address from signature
-    const recoveredAddress = verifySignatureAndGetAddress(messageHash, signature);
-    if (recoveredAddress.toLowerCase() !== sender.toLowerCase()) {
-      res.status(401).send({
-        code: ErrorCode.INVALID_SIGNATURE,
-        message: 'Invalid signature - authentication failed',
-        details: { expected: sender, recovered: recoveredAddress },
-      } as ErrorResponse);
-      return;
-    }
+      // Verify message hash
+      logger.debug('Verifying message hash');
+      const messageString = JSON.stringify(message);
+      const messageBytes = new TextEncoder().encode(messageString);
+      const computedHash = secp.etc.bytesToHex(keccak_256(messageBytes));
 
-    // Initialize balances if needed
-    setInitialBalance(sender);
-    setInitialBalance(recipient);
+      if (computedHash !== messageHash) {
+        logger.error('Invalid message hash - possible tampering detected');
+        res.status(400).send({
+          code: ErrorCode.INVALID_HASH,
+          message: 'Invalid message hash - message may have been tampered with',
+        } as ErrorResponse);
+        return;
+      }
 
-    // Check sufficient funds
-    if (state.balances[sender] < amount) {
-      res.status(400).send({
-        code: ErrorCode.INSUFFICIENT_FUNDS,
-        message: 'Not enough funds',
-        details: { required: amount, available: state.balances[sender] },
-      } as ErrorResponse);
-      return;
-    }
+      // Recover address from signature
+      logger.debug('Verifying signature');
+      const recoveredAddress = verifySignatureAndGetAddress(messageHash, signature);
+      if (recoveredAddress.toLowerCase() !== sender.toLowerCase()) {
+        logger.error(`Signature verification failed: expected ${sender}, got ${recoveredAddress}`);
+        res.status(401).send({
+          code: ErrorCode.INVALID_SIGNATURE,
+          message: 'Invalid signature - authentication failed',
+          details: { expected: sender, recovered: recoveredAddress },
+        } as ErrorResponse);
+        return;
+      }
 
-    // Process transaction
-    state.balances[sender] -= amount;
-    state.balances[recipient] += amount;
-    state.nonces[sender] = nonce;
+      // Initialize balances if needed
+      setInitialBalance(sender);
+      setInitialBalance(recipient);
 
-    // Save changes to storage (debounced)
-    scheduleSave(state.balances, state.nonces);
+      // Check sufficient funds
+      logger.debug('Checking balance');
+      if (state.balances[sender] < amount) {
+        logger.warn(`Insufficient funds: required ${amount}, available ${state.balances[sender]}`);
+        res.status(400).send({
+          code: ErrorCode.INSUFFICIENT_FUNDS,
+          message: 'Not enough funds',
+          details: { required: amount, available: state.balances[sender] },
+        } as ErrorResponse);
+        return;
+      }
 
-    console.log(`Transaction successful: ${sender} → ${recipient} (${amount})`);
+      // Process transaction
+      logger.info('Processing transaction');
+      state.balances[sender] -= amount;
+      state.balances[recipient] += amount;
+      state.nonces[sender] = nonce;
 
-    res.send({
-      balance: state.balances[sender],
-      newNonce: nonce,
-      recipient: {
-        address: recipient,
-        newBalance: state.balances[recipient],
-      },
+      // Save changes to storage (debounced)
+      scheduleSave(state.balances, state.nonces);
+
+      logger.info(`Transaction successful: ${sender} → ${recipient} (${amount})`);
+
+      res.send({
+        balance: state.balances[sender],
+        newNonce: nonce,
+        recipient: {
+          address: recipient,
+          newBalance: state.balances[recipient],
+        },
+      });
     });
   } catch (error) {
-    console.error('Error processing transaction:', error);
+    logger.error('Error processing transaction', error as Error);
     res.status(500).send({
       code: ErrorCode.INTERNAL_ERROR,
       message: 'Error processing transaction',
@@ -221,6 +297,16 @@ app.post('/send', (req: Request<object, object, SendRequestBody>, res: Response)
 });
 
 app.listen(port, () => {
-  console.log(`Server listening on port ${port}`);
-  console.log(`Initial balances loaded: ${Object.keys(state.balances).length} accounts`);
+  const context = LogContext.create({
+    operation: 'server-startup',
+    transactionData: new Map([
+      ['port', port.toString()],
+      ['accounts', Object.keys(state.balances).length.toString()],
+    ]),
+  });
+
+  withLogContext(context, () => {
+    logger.info(`Server listening on port ${port}`);
+    logger.info(`Initial balances loaded: ${Object.keys(state.balances).length} accounts`);
+  });
 });
