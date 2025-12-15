@@ -3,6 +3,7 @@
     "target": "ES2024",
     "module": "commonjs",
     "lib": ["ES2024"],
+    "rootDir": "./src",
     "outDir": "./dist",
     "strict": true,
     "esModuleInterop": true,
@@ -11,6 +12,6 @@
     "resolveJsonModule": true,
     "moduleResolution": "node"
   },
-  "include": ["src/**/*", "script/**/*"],
+  "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]
 }

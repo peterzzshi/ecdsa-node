@@ -31,8 +31,8 @@ export enum ErrorCode {
   INTERNAL_ERROR = 'INTERNAL_ERROR',
 }
 
-export interface ErrorResponse {
+export type ErrorResponse = {
   code: ErrorCode | string;
   message: string;
   details?: unknown;
-}
+};

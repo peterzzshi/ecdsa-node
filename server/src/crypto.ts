@@ -26,15 +26,6 @@ export function recoverPublicKeyFromSignature(
   const messageHashBytes = secp.etc.hexToBytes(messageHash);
   const signatureBytes = secp.etc.hexToBytes(signature);
 
-  // Debug logs - only enable if needed
-  const DEBUG = process.env.DEBUG === 'true';
-  if (DEBUG) {
-    console.log('Recovery input - signature hex:', signature);
-    console.log('Recovery input - signature length:', signatureBytes.length);
-    console.log('Recovery input - message hash length:', messageHashBytes.length);
-    console.log('Recovery input - first byte (recovery):', signatureBytes[0]);
-  }
-
   // The signature should be 65 bytes (64 bytes signature + 1 byte recovery)
   if (signatureBytes.length !== 65) {
     throw new Error(`Invalid signature length: expected 65 bytes, got ${signatureBytes.length}`);
@@ -48,20 +39,10 @@ export function recoverPublicKeyFromSignature(
     { prehash: false },
   );
 
-  if (DEBUG) {
-    console.log('Recovered public key (compressed):', secp.etc.bytesToHex(publicKeyCompressed));
-  }
-
   // Convert to uncompressed format (65 bytes) for Ethereum address derivation
   const publicKeyPoint = secp.Point.fromBytes(publicKeyCompressed);
-  const publicKey = publicKeyPoint.toBytes(false);
-
-  if (DEBUG) {
-    console.log('Recovered public key (uncompressed) length:', publicKey.length);
-  }
-
   // Return as raw bytes (uncompressed format - 65 bytes)
-  return publicKey;
+  return publicKeyPoint.toBytes(false);
 }
 
 /**
